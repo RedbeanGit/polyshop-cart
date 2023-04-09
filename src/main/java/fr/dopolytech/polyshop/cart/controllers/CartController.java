@@ -1,9 +1,11 @@
 package fr.dopolytech.polyshop.cart.controllers;
 
-import org.springframework.data.redis.core.ReactiveRedisOperations;
+import java.util.List;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import reactor.core.publisher.Flux;
@@ -11,38 +13,41 @@ import reactor.core.publisher.Mono;
 
 import fr.dopolytech.polyshop.cart.dtos.AddToCartDto;
 import fr.dopolytech.polyshop.cart.models.Purchase;
+import fr.dopolytech.polyshop.cart.services.PurchaseService;
+import fr.dopolytech.polyshop.cart.services.QueueService;
 
 @RestController
 @RequestMapping("/cart")
 public class CartController {
-	private final ReactiveRedisOperations<String, Long> purchaseOperations;
+	private final PurchaseService purchaseService;
+	private final QueueService queueService;
 
-	CartController(ReactiveRedisOperations<String, Long> purchaseOperations) {
-		this.purchaseOperations = purchaseOperations;
+	public CartController(PurchaseService cartService, QueueService queueService) {
+		this.purchaseService = cartService;
+		this.queueService = queueService;
 	}
 
 	@PostMapping("/add")
 	public Mono<Purchase> addToCart(@RequestBody AddToCartDto dto) {
-		return purchaseOperations.opsForValue().increment(dto.getProductId())
-				.map(count -> new Purchase(dto.getProductId(), count));
+		return purchaseService.addToCart(dto);
 	}
 
 	@PostMapping("/remove")
 	public Mono<Purchase> removeFromCart(@RequestBody AddToCartDto dto) {
-		if (!purchaseOperations.hasKey(dto.getProductId()).block()) {
-			return Mono.just(new Purchase(dto.getProductId(), 0L));
-		}
-		if (purchaseOperations.opsForValue().get(dto.getProductId()).block() <= 1) {
-			return purchaseOperations.delete(dto.getProductId()).map(count -> new Purchase(dto.getProductId(), 0L));
-		}
-		return purchaseOperations.opsForValue().decrement(dto.getProductId())
-				.map(count -> new Purchase(dto.getProductId(), count));
+		return purchaseService.removeFromCart(dto);
+	}
+
+	@PostMapping("/checkout")
+	public Mono<Void> checkout() throws Exception {
+		List<Purchase> purchases = purchaseService.getAllBlocking();
+		String message = queueService.createMessage(purchases);
+
+		queueService.sendCheckout(message);
+		return purchaseService.deleteAll();
 	}
 
 	@GetMapping
 	public Flux<Purchase> findAll() {
-		return purchaseOperations
-				.keys("*")
-				.flatMap(key -> purchaseOperations.opsForValue().get(key).map(purchase -> new Purchase(key, purchase)));
+		return purchaseService.findAll();
 	}
 }

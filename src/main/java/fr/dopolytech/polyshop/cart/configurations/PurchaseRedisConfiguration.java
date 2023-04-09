@@ -1,4 +1,4 @@
-package fr.dopolytech.polyshop.cart.configs;
+package fr.dopolytech.polyshop.cart.configurations;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,13 +10,13 @@ import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
-public class PurchaseRedisConfig {
+public class PurchaseRedisConfiguration {
   @Bean
   ReactiveRedisOperations<String, Long> redisOperations(ReactiveRedisConnectionFactory factory) {
     Jackson2JsonRedisSerializer<Long> serializer = new Jackson2JsonRedisSerializer<>(Long.class);
 
-    RedisSerializationContext.RedisSerializationContextBuilder<String, Long> builder =
-        RedisSerializationContext.newSerializationContext(new StringRedisSerializer());
+    RedisSerializationContext.RedisSerializationContextBuilder<String, Long> builder = RedisSerializationContext
+        .newSerializationContext(new StringRedisSerializer());
 
     RedisSerializationContext<String, Long> context = builder.value(serializer).build();
 
@@ -24,4 +24,3 @@ public class PurchaseRedisConfig {
   }
 
 }
-
