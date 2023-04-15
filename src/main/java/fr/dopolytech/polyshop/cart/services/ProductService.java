@@ -1,21 +1,27 @@
 package fr.dopolytech.polyshop.cart.services;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.data.redis.core.ReactiveRedisOperations;
 import org.springframework.stereotype.Service;
 
+import fr.dopolytech.polyshop.cart.components.QueueUtils;
 import fr.dopolytech.polyshop.cart.dtos.AddToCartDto;
+import fr.dopolytech.polyshop.cart.events.CartCheckoutEvent;
+import fr.dopolytech.polyshop.cart.events.CartCheckoutEventProduct;
 import fr.dopolytech.polyshop.cart.models.Product;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Service
-public class PurchaseService {
+public class ProductService {
     private final ReactiveRedisOperations<String, Long> purchaseOperations;
+    private final QueueUtils queueUtils;
 
-    public PurchaseService(ReactiveRedisOperations<String, Long> purchaseOperations) {
+    public ProductService(ReactiveRedisOperations<String, Long> purchaseOperations, QueueUtils queueUtils) {
         this.purchaseOperations = purchaseOperations;
+        this.queueUtils = queueUtils;
     }
 
     public Mono<Product> addToCart(AddToCartDto dto) {
@@ -34,22 +40,37 @@ public class PurchaseService {
                 .map(quantity -> new Product(dto.productId, quantity.intValue()));
     }
 
-    public List<Product> getAllBlocking() {
-        return purchaseOperations.keys("*")
-                .flatMap(key -> purchaseOperations.opsForValue().get(key)
-                        .map(quantity -> new Product(key, quantity.intValue())))
-                .collectList()
-                .block();
-    }
-
-    public Flux<Product> findAll() {
+    public Flux<Product> getProducts() {
         return purchaseOperations
                 .keys("*")
                 .flatMap(key -> purchaseOperations.opsForValue().get(key)
                         .map(quantity -> new Product(key, quantity.intValue())));
     }
 
-    public Mono<Void> deleteAll() {
+    public Mono<Void> clearProducts() {
         return purchaseOperations.keys("*").flatMap(key -> purchaseOperations.delete(key)).then();
     }
+
+    public boolean checkout() {
+        List<Product> products = getProducts().collectList().block();
+        List<CartCheckoutEventProduct> checkoutProducts = new ArrayList<CartCheckoutEventProduct>();
+
+        for (Product product : products) {
+            checkoutProducts.add(new CartCheckoutEventProduct(product.productId, product.quantity));
+        }
+
+        CartCheckoutEvent event = new CartCheckoutEvent(checkoutProducts.toArray(new CartCheckoutEventProduct[0]));
+
+        try {
+            queueUtils.sendCheckout(event);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        this.clearProducts();
+
+        return true;
+    }
+
 }
