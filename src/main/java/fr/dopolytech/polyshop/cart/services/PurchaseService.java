@@ -19,19 +19,19 @@ public class PurchaseService {
     }
 
     public Mono<Purchase> addToCart(AddToCartDto dto) {
-        return purchaseOperations.opsForValue().increment(dto.getProductId())
-                .map(count -> new Purchase(dto.getProductId(), count));
+        return purchaseOperations.opsForValue().increment(dto.productId, dto.quantity)
+                .map(count -> new Purchase(dto.productId, count));
     }
 
     public Mono<Purchase> removeFromCart(AddToCartDto dto) {
-        if (!purchaseOperations.hasKey(dto.getProductId()).block()) {
-            return Mono.just(new Purchase(dto.getProductId(), 0L));
+        if (!purchaseOperations.hasKey(dto.productId).block()) {
+            return Mono.just(new Purchase(dto.productId, 0L));
         }
-        if (purchaseOperations.opsForValue().get(dto.getProductId()).block() <= 1) {
-            return purchaseOperations.delete(dto.getProductId()).map(count -> new Purchase(dto.getProductId(), 0L));
+        if (purchaseOperations.opsForValue().get(dto.productId).block() <= dto.quantity) {
+            return purchaseOperations.delete(dto.productId).map(count -> new Purchase(dto.productId, 0L));
         }
-        return purchaseOperations.opsForValue().decrement(dto.getProductId())
-                .map(count -> new Purchase(dto.getProductId(), count));
+        return purchaseOperations.opsForValue().decrement(dto.productId, dto.quantity)
+                .map(count -> new Purchase(dto.productId, count));
     }
 
     public List<Purchase> getAllBlocking() {
