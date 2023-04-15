@@ -6,7 +6,7 @@ import org.springframework.data.redis.core.ReactiveRedisOperations;
 import org.springframework.stereotype.Service;
 
 import fr.dopolytech.polyshop.cart.dtos.AddToCartDto;
-import fr.dopolytech.polyshop.cart.models.Purchase;
+import fr.dopolytech.polyshop.cart.models.Product;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -18,33 +18,35 @@ public class PurchaseService {
         this.purchaseOperations = purchaseOperations;
     }
 
-    public Mono<Purchase> addToCart(AddToCartDto dto) {
+    public Mono<Product> addToCart(AddToCartDto dto) {
         return purchaseOperations.opsForValue().increment(dto.productId, dto.quantity)
-                .map(count -> new Purchase(dto.productId, count));
+                .map(quantity -> new Product(dto.productId, quantity.intValue()));
     }
 
-    public Mono<Purchase> removeFromCart(AddToCartDto dto) {
+    public Mono<Product> removeFromCart(AddToCartDto dto) {
         if (!purchaseOperations.hasKey(dto.productId).block()) {
-            return Mono.just(new Purchase(dto.productId, 0L));
+            return Mono.just(new Product(dto.productId, 0));
         }
         if (purchaseOperations.opsForValue().get(dto.productId).block() <= dto.quantity) {
-            return purchaseOperations.delete(dto.productId).map(count -> new Purchase(dto.productId, 0L));
+            return purchaseOperations.delete(dto.productId).map(count -> new Product(dto.productId, 0));
         }
         return purchaseOperations.opsForValue().decrement(dto.productId, dto.quantity)
-                .map(count -> new Purchase(dto.productId, count));
+                .map(quantity -> new Product(dto.productId, quantity.intValue()));
     }
 
-    public List<Purchase> getAllBlocking() {
+    public List<Product> getAllBlocking() {
         return purchaseOperations.keys("*")
-                .flatMap(key -> purchaseOperations.opsForValue().get(key).map(count -> new Purchase(key, count)))
+                .flatMap(key -> purchaseOperations.opsForValue().get(key)
+                        .map(quantity -> new Product(key, quantity.intValue())))
                 .collectList()
                 .block();
     }
 
-    public Flux<Purchase> findAll() {
+    public Flux<Product> findAll() {
         return purchaseOperations
                 .keys("*")
-                .flatMap(key -> purchaseOperations.opsForValue().get(key).map(purchase -> new Purchase(key, purchase)));
+                .flatMap(key -> purchaseOperations.opsForValue().get(key)
+                        .map(quantity -> new Product(key, quantity.intValue())));
     }
 
     public Mono<Void> deleteAll() {

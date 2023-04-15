@@ -12,7 +12,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import fr.dopolytech.polyshop.cart.dtos.AddToCartDto;
-import fr.dopolytech.polyshop.cart.models.Purchase;
+import fr.dopolytech.polyshop.cart.models.Product;
 import fr.dopolytech.polyshop.cart.services.PurchaseService;
 import fr.dopolytech.polyshop.cart.services.QueueService;
 
@@ -28,18 +28,18 @@ public class CartController {
 	}
 
 	@PostMapping("/add")
-	public Mono<Purchase> addToCart(@RequestBody AddToCartDto dto) {
+	public Mono<Product> addToCart(@RequestBody AddToCartDto dto) {
 		return purchaseService.addToCart(dto);
 	}
 
 	@PostMapping("/remove")
-	public Mono<Purchase> removeFromCart(@RequestBody AddToCartDto dto) {
+	public Mono<Product> removeFromCart(@RequestBody AddToCartDto dto) {
 		return purchaseService.removeFromCart(dto);
 	}
 
 	@PostMapping("/checkout")
 	public Mono<Void> checkout() throws Exception {
-		List<Purchase> purchases = purchaseService.getAllBlocking();
+		List<Product> purchases = purchaseService.getAllBlocking();
 		String message = queueService.createMessage(purchases);
 
 		queueService.sendCheckout(message);
@@ -47,7 +47,7 @@ public class CartController {
 	}
 
 	@GetMapping
-	public Flux<Purchase> findAll() {
+	public Flux<Product> findAll() {
 		return purchaseService.findAll();
 	}
 }
