@@ -10,10 +10,10 @@ services:
   eureka:
     image: redbeandock/polyshop-discovery-server:latest
     ports:
-      - "8761:8761"
+      - 8761:8761
 
   rabbitmq:
     image: rabbitmq:management
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - 5672:5672
+      - 15672:15672

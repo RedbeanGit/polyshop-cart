@@ -6,7 +6,6 @@ import java.util.List;
 import org.springframework.data.redis.core.ReactiveRedisOperations;
 import org.springframework.stereotype.Service;
 
-import fr.dopolytech.polyshop.cart.components.QueueUtils;
 import fr.dopolytech.polyshop.cart.dtos.AddToCartDto;
 import fr.dopolytech.polyshop.cart.events.CartCheckoutEvent;
 import fr.dopolytech.polyshop.cart.events.CartCheckoutEventProduct;
@@ -17,11 +16,11 @@ import reactor.core.publisher.Mono;
 @Service
 public class ProductService {
     private final ReactiveRedisOperations<String, Long> purchaseOperations;
-    private final QueueUtils queueUtils;
+    private final QueueService queueService;
 
-    public ProductService(ReactiveRedisOperations<String, Long> purchaseOperations, QueueUtils queueUtils) {
+    public ProductService(ReactiveRedisOperations<String, Long> purchaseOperations, QueueService queueService) {
         this.purchaseOperations = purchaseOperations;
-        this.queueUtils = queueUtils;
+        this.queueService = queueService;
     }
 
     public Mono<Product> addToCart(AddToCartDto dto) {
@@ -62,7 +61,7 @@ public class ProductService {
         CartCheckoutEvent event = new CartCheckoutEvent(checkoutProducts.toArray(new CartCheckoutEventProduct[0]));
 
         try {
-            queueUtils.sendCheckout(event);
+            queueService.sendCheckout(event);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
