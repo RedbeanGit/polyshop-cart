@@ -1,14 +1,13 @@
 package fr.dopolytech.polyshop.cart.services;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.springframework.data.redis.core.ReactiveRedisOperations;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import fr.dopolytech.polyshop.cart.dtos.AddToCartDto;
-import fr.dopolytech.polyshop.cart.events.CartCheckoutEvent;
-import fr.dopolytech.polyshop.cart.events.CartCheckoutEventProduct;
+import fr.dopolytech.polyshop.cart.models.CatalogProduct;
+import fr.dopolytech.polyshop.cart.models.PolyshopEvent;
+import fr.dopolytech.polyshop.cart.models.PolyshopEventProduct;
 import fr.dopolytech.polyshop.cart.models.Product;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -17,10 +16,13 @@ import reactor.core.publisher.Mono;
 public class ProductService {
     private final ReactiveRedisOperations<String, Long> purchaseOperations;
     private final QueueService queueService;
+    private final WebClient.Builder webClientBuilder;
 
-    public ProductService(ReactiveRedisOperations<String, Long> purchaseOperations, QueueService queueService) {
+    public ProductService(ReactiveRedisOperations<String, Long> purchaseOperations, QueueService queueService,
+            WebClient.Builder webClientBuilder) {
         this.purchaseOperations = purchaseOperations;
         this.queueService = queueService;
+        this.webClientBuilder = webClientBuilder;
     }
 
     public Mono<Product> addToCart(AddToCartDto dto) {
@@ -50,26 +52,28 @@ public class ProductService {
         return purchaseOperations.keys("*").flatMap(key -> purchaseOperations.delete(key)).then();
     }
 
-    public boolean checkout() {
-        List<Product> products = getProducts().collectList().block();
-        List<CartCheckoutEventProduct> checkoutProducts = new ArrayList<CartCheckoutEventProduct>();
+    public Mono<Boolean> checkout() {
+        WebClient client = webClientBuilder.build();
 
-        for (Product product : products) {
-            checkoutProducts.add(new CartCheckoutEventProduct(product.productId, product.quantity));
-        }
-
-        CartCheckoutEvent event = new CartCheckoutEvent(checkoutProducts.toArray(new CartCheckoutEventProduct[0]));
-
-        try {
-            queueService.sendCheckout(event);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-
-        this.clearProducts();
-
-        return true;
+        return getProducts().collectList()
+                .flatMap(products -> Flux.merge(products.stream().map(product -> client.get()
+                        .uri("lb://catalog-service/products/" + product.productId)
+                        .retrieve()
+                        .bodyToMono(CatalogProduct.class)
+                        .map(catalogProduct -> new PolyshopEventProduct(product.productId, catalogProduct.name,
+                                catalogProduct.price, product.quantity)))
+                        .toList()).collectList())
+                .map(eventProducts -> {
+                    PolyshopEvent event = new PolyshopEvent(
+                            eventProducts.toArray(new PolyshopEventProduct[eventProducts.size()]));
+                    try {
+                        queueService.sendCartCheckout(event);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        return false;
+                    }
+                    return true;
+                });
     }
 
 }

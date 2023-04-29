@@ -42,7 +42,7 @@ public class CartController {
 	}
 
 	@PostMapping("/checkout")
-	public boolean checkout() throws Exception {
+	public Mono<Boolean> checkout() throws Exception {
 		return productService.checkout();
 	}
 }

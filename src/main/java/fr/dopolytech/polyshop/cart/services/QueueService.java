@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import fr.dopolytech.polyshop.cart.events.CartCheckoutEvent;
+import fr.dopolytech.polyshop.cart.models.PolyshopEvent;
 
 @Service
 public class QueueService {
@@ -17,11 +17,11 @@ public class QueueService {
         this.rabbitTemplate = rabbitTemplate;
     }
 
-    public void sendCheckout(CartCheckoutEvent event) throws JsonProcessingException {
+    public void sendCartCheckout(PolyshopEvent event) throws JsonProcessingException {
         rabbitTemplate.convertAndSend("cartExchange", "cart.checkout", this.stringify(event));
     }
 
-    public String stringify(Object object) throws JsonProcessingException {
+    public String stringify(PolyshopEvent object) throws JsonProcessingException {
         return mapper.writeValueAsString(object);
     }
 }
