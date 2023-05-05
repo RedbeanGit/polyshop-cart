@@ -1,5 +1,6 @@
 package fr.dopolytech.polyshop.cart.services;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveRedisOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -17,12 +18,14 @@ public class ProductService {
     private final ReactiveRedisOperations<String, Long> purchaseOperations;
     private final QueueService queueService;
     private final WebClient.Builder webClientBuilder;
+    private final String catalogServiceUrl;
 
     public ProductService(ReactiveRedisOperations<String, Long> purchaseOperations, QueueService queueService,
-            WebClient.Builder webClientBuilder) {
+            WebClient.Builder webClientBuilder, @Value("${catalog-service.url}") String catalogServiceUrl) {
         this.purchaseOperations = purchaseOperations;
         this.queueService = queueService;
         this.webClientBuilder = webClientBuilder;
+        this.catalogServiceUrl = catalogServiceUrl;
     }
 
     public Mono<Product> addToCart(AddToCartDto dto) {
@@ -57,7 +60,7 @@ public class ProductService {
 
         return getProducts().collectList()
                 .flatMap(products -> Flux.merge(products.stream().map(product -> client.get()
-                        .uri("lb://catalog-service/products/" + product.productId)
+                        .uri(this.catalogServiceUrl + "/products/" + product.productId)
                         .retrieve()
                         .bodyToMono(CatalogProduct.class)
                         .map(catalogProduct -> new PolyshopEventProduct(product.productId, catalogProduct.name,
